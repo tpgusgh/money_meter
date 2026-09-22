@@ -110,6 +110,17 @@ struct MeterView: View {
 
     private var detailView: some View {
         VStack(alignment: .leading, spacing: 10) {
+            if let update = model.availableUpdate {
+                Button {
+                    NSWorkspace.shared.open(update.url)
+                } label: {
+                    Text("🔔 새 버전 v\(update.version) — 눌러서 업데이트")
+                        .font(.caption)
+                        .frame(maxWidth: .infinity)
+                }
+                .foregroundStyle(.yellow)
+            }
+
             VStack(alignment: .leading, spacing: 2) {
                 Text("오늘").font(.caption2).foregroundStyle(.gray)
                 Text(formatWon(model.todayAmount))

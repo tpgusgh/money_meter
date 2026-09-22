@@ -9,6 +9,8 @@ final class FloatingPanel: NSPanel {
 }
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    private static let panelSize = NSSize(width: 220, height: 400)
+
     private var panel: FloatingPanel!
     private var statusItem: NSStatusItem!
     private let model = PayModel()
@@ -17,25 +19,58 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory) // no Dock icon
         setupStatusItem()
         setupPanel()
+        checkForUpdate()
+    }
+
+    private func checkForUpdate() {
+        // Dev (`swift run`) builds have no Info.plist version — nothing to compare against.
+        guard let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String else { return }
+        UpdateChecker.checkForUpdate(currentVersion: currentVersion) { [weak self] update in
+            self?.model.availableUpdate = update
+        }
     }
 
     private func setupStatusItem() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem.button?.image = NSImage(systemSymbolName: "wonsign.circle", accessibilityDescription: "Time Is Money")
-        statusItem.button?.action = #selector(togglePanel)
+        statusItem.button?.action = #selector(statusItemClicked)
         statusItem.button?.target = self
+        statusItem.button?.sendAction(on: [.leftMouseUp, .rightMouseUp])
     }
 
-    @objc private func togglePanel() {
-        model.toggleDetail()
-        panel.orderFrontRegardless() // stays forced on-screen; this just reveals detail controls
+    @objc private func statusItemClicked() {
+        guard let event = NSApp.currentEvent, event.type == .rightMouseUp else {
+            // left click: reveal/toggle the detail panel like before
+            model.toggleDetail()
+            panel.orderFrontRegardless()
+            return
+        }
+
+        // right click: recovery menu — the panel can get dragged off-screen
+        // (isMovableByWindowBackground), so offer a way back in plus quit.
+        let menu = NSMenu()
+        menu.addItem(NSMenuItem(title: "패널 위치 초기화", action: #selector(resetPanelPosition), keyEquivalent: ""))
+        menu.addItem(.separator())
+        menu.addItem(NSMenuItem(title: "종료", action: #selector(quitApp), keyEquivalent: "q"))
+        for item in menu.items { item.target = self }
+        statusItem.menu = menu
+        statusItem.button?.performClick(nil)
+        statusItem.menu = nil // detach so left-click keeps going through statusItemClicked
+    }
+
+    @objc private func resetPanelPosition() {
+        positionPanelTopRight()
+        panel.orderFrontRegardless()
+    }
+
+    @objc private func quitApp() {
+        NSApplication.shared.terminate(nil)
     }
 
     private func setupPanel() {
-        let panelSize = NSSize(width: 220, height: 400)
         let hosting = NSHostingController(rootView: MeterView(model: model))
         let panel = FloatingPanel(
-            contentRect: NSRect(origin: .zero, size: panelSize),
+            contentRect: NSRect(origin: .zero, size: Self.panelSize),
             styleMask: [.borderless, .nonactivatingPanel, .fullSizeContentView],
             backing: .buffered,
             defer: false
@@ -49,14 +84,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .stationary]
         self.panel = panel
 
-        // contentViewController assignment can reset the frame, so size+position are set
-        // together afterward instead of relying on panel.frame (which may read stale/zero here).
-        // NSScreen.main follows whatever window currently has key focus (could be any app,
-        // on any monitor) — screens.first is the display that actually owns the menu bar.
-        if let sf = NSScreen.screens.first?.visibleFrame {
-            let origin = NSPoint(x: sf.maxX - panelSize.width - 16, y: sf.maxY - panelSize.height - 16)
-            panel.setFrame(NSRect(origin: origin, size: panelSize), display: true)
-        }
+        positionPanelTopRight()
         panel.orderFrontRegardless() // force on-screen even though the app never activates
+    }
+
+    /// NSScreen.main follows whatever window currently has key focus (could be any app,
+    /// on any monitor) — screens.first is the display that actually owns the menu bar.
+    private func positionPanelTopRight() {
+        guard let sf = NSScreen.screens.first?.visibleFrame else { return }
+        let origin = NSPoint(x: sf.maxX - Self.panelSize.width - 16, y: sf.maxY - Self.panelSize.height - 16)
+        // contentViewController assignment can reset the frame, so size+position are set
+        // together instead of relying on panel.frame (which may read stale/zero right after).
+        panel.setFrame(NSRect(origin: origin, size: Self.panelSize), display: true)
     }
 }
