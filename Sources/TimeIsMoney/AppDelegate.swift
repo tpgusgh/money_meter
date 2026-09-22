@@ -77,6 +77,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         panel.contentViewController = hosting
         panel.level = .floating
+        panel.hidesOnDeactivate = false // NSPanel defaults to true — was vanishing behind every other app
         panel.isMovableByWindowBackground = true
         panel.backgroundColor = .clear
         panel.hasShadow = false // MeterView draws its own shadow, scoped to its actual content size
