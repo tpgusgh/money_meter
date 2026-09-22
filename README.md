@@ -1,3 +1,5 @@
+<p align="center"><img src="Resources/AppIcon-source.png" width="128" height="128" alt="app icon"></p>
+
 # 월급 카운터 펫 (Time Is Money)
 
 macOS 메뉴바에 상시로 떠 있는 택시 미터기 스타일 급여 카운터.
