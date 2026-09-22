@@ -38,7 +38,7 @@ macOS 메뉴바에 상시로 떠 있는 택시 미터기 스타일 급여 카운
 
 ### 1) 빌드된 앱으로 바로 실행 (권장)
 
-[Releases](https://github.com/tpgusgh/money_meter/releases) 에서 `월급미터기-x.x.x.zip`을 받아 압축을 풀고 `월급미터기.app`을 더블클릭.
+[Releases](https://github.com/tpgusgh/money_meter/releases) 에서 `WolgeupMeter-x.x.x.zip`을 받아 압축을 풀고 `월급미터기.app`을 더블클릭.
 
 앱 서명이 없어서(Apple 유료 개발자 계정 미가입) 처음 열 때 "확인되지 않은 개발자" 경고가 뜬다.
 `월급미터기.app`을 우클릭(또는 control+클릭) → **열기** → 열기 를 누르면 이후엔 정상적으로 더블클릭 실행 가능.

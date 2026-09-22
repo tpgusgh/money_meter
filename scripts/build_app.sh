@@ -48,6 +48,10 @@ PLIST
 
 codesign --force --deep -s - "$APP_DIR"
 
-ditto -c -k --sequesterRsrc --keepParent "$APP_DIR" "dist/$APP_DISPLAY_NAME-$VERSION.zip"
+# zip filename stays ASCII: `gh release upload` mangles non-ASCII asset names
+# (confirmed against GitHub — the Korean prefix gets silently dropped). The .app
+# bundle inside is still named $APP_DISPLAY_NAME.app.
+ZIP_NAME="WolgeupMeter-$VERSION.zip"
+ditto -c -k --sequesterRsrc --keepParent "$APP_DIR" "dist/$ZIP_NAME"
 
-echo "Built dist/$APP_DISPLAY_NAME-$VERSION.zip"
+echo "Built dist/$ZIP_NAME"
