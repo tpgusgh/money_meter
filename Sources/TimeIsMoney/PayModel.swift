@@ -8,9 +8,17 @@ final class PayModel: ObservableObject {
     @Published private(set) var isRunning: Bool
     @Published private(set) var todayAmount: Double
     @Published private(set) var cumulativeAmount: Double
+    @Published private(set) var lastStartDate: Date?
+    @Published private(set) var lastStopDate: Date?
+    /// Per-day earnings ("yyyy-MM-dd" -> won), independent of the 3h idle reset on
+    /// `todayAmount` — this is what the calendar view reads. Pruned to the last
+    /// `PayCalculator.historyRetentionDays` days whenever a new day starts.
+    @Published private(set) var dailyHistory: [String: Double]
     /// Session-only (not persisted): whether the floating panel shows full controls
     /// or just collapses to the running total. Toggled from the status bar icon.
     @Published var showDetail: Bool = true
+    /// Session-only: whether the panel is showing the calendar instead of detail controls.
+    @Published var showCalendar: Bool = false
 
     static let idleResetInterval: TimeInterval = 3 * 3600 // "오늘" clears 3h after work stops
 
@@ -32,6 +40,9 @@ final class PayModel: ObservableObject {
         static let payPeriodStart = "payPeriodStart"
         static let lastTickDate = "lastTickDate"
         static let stoppedAt = "stoppedAt"
+        static let lastStartDate = "lastStartDate"
+        static let lastStopDate = "lastStopDate"
+        static let dailyHistory = "dailyHistory"
     }
 
     init(defaults: UserDefaults = .standard) {
@@ -44,6 +55,11 @@ final class PayModel: ObservableObject {
         isRunning = defaults.bool(forKey: Keys.isRunning)
         todayAmount = defaults.double(forKey: Keys.todayAmount)
         cumulativeAmount = defaults.double(forKey: Keys.cumulativeAmount)
+        let storedStart = defaults.double(forKey: Keys.lastStartDate)
+        lastStartDate = storedStart > 0 ? Date(timeIntervalSince1970: storedStart) : nil
+        let storedStop = defaults.double(forKey: Keys.lastStopDate)
+        lastStopDate = storedStop > 0 ? Date(timeIntervalSince1970: storedStop) : nil
+        dailyHistory = defaults.dictionary(forKey: Keys.dailyHistory) as? [String: Double] ?? [:]
 
         let now = Date()
         let storedReset = defaults.double(forKey: Keys.lastResetDate)
@@ -100,9 +116,12 @@ final class PayModel: ObservableObject {
     func start() {
         guard !isRunning else { return }
         isRunning = true
-        lastTickDate = Date()
+        let now = Date()
+        lastTickDate = now
+        lastStartDate = now
         defaults.set(isRunning, forKey: Keys.isRunning)
         defaults.set(lastTickDate.timeIntervalSince1970, forKey: Keys.lastTickDate)
+        defaults.set(now.timeIntervalSince1970, forKey: Keys.lastStartDate)
         defaults.removeObject(forKey: Keys.stoppedAt)
         idleResetTimer?.invalidate()
         idleResetTimer = nil
@@ -118,7 +137,9 @@ final class PayModel: ObservableObject {
         defaults.set(isRunning, forKey: Keys.isRunning)
 
         let now = Date()
+        lastStopDate = now
         defaults.set(now.timeIntervalSince1970, forKey: Keys.stoppedAt)
+        defaults.set(now.timeIntervalSince1970, forKey: Keys.lastStopDate)
         scheduleIdleReset(after: Self.idleResetInterval)
     }
 
@@ -151,6 +172,7 @@ final class PayModel: ObservableObject {
             todayAmount = 0
             lastResetDate = now
             defaults.set(lastResetDate.timeIntervalSince1970, forKey: Keys.lastResetDate)
+            pruneHistory(now: now)
         }
         if PayCalculator.shouldResetForNewPayPeriod(storedPeriodStart: payPeriodStart, now: now, payday: paydayDay) {
             cumulativeAmount = 0
@@ -164,8 +186,17 @@ final class PayModel: ObservableObject {
         cumulativeAmount += amount
         lastTickDate = now
 
+        let key = PayCalculator.dayKey(for: now)
+        dailyHistory[key, default: 0] += amount
+
         defaults.set(todayAmount, forKey: Keys.todayAmount)
         defaults.set(cumulativeAmount, forKey: Keys.cumulativeAmount)
         defaults.set(lastTickDate.timeIntervalSince1970, forKey: Keys.lastTickDate)
+        defaults.set(dailyHistory, forKey: Keys.dailyHistory)
+    }
+
+    private func pruneHistory(now: Date) {
+        dailyHistory = dailyHistory.filter { PayCalculator.isWithinRetention(dayKey: $0.key, now: now) }
+        defaults.set(dailyHistory, forKey: Keys.dailyHistory)
     }
 }

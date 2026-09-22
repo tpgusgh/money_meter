@@ -52,4 +52,26 @@ enum PayCalculator {
     static func shouldClearIdleToday(stoppedAt: Date, now: Date, interval: TimeInterval) -> Bool {
         now.timeIntervalSince(stoppedAt) >= interval
     }
+
+    static let historyRetentionDays = 90
+
+    private static func dayKeyFormatter(calendar: Calendar) -> DateFormatter {
+        let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
+        f.dateFormat = "yyyy-MM-dd"
+        f.calendar = calendar
+        f.timeZone = calendar.timeZone
+        return f
+    }
+
+    static func dayKey(for date: Date, calendar: Calendar = .current) -> String {
+        dayKeyFormatter(calendar: calendar).string(from: date)
+    }
+
+    /// Whether a "yyyy-MM-dd" history key is still within the retention window ending at `now`.
+    static func isWithinRetention(dayKey: String, now: Date, retentionDays: Int = historyRetentionDays, calendar: Calendar = .current) -> Bool {
+        guard let date = dayKeyFormatter(calendar: calendar).date(from: dayKey) else { return false }
+        guard let cutoff = calendar.date(byAdding: .day, value: -retentionDays, to: now) else { return true }
+        return date >= calendar.startOfDay(for: cutoff)
+    }
 }

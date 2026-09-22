@@ -20,6 +20,26 @@ private func digitsOnly(_ s: String) -> String {
     s.filter(\.isNumber)
 }
 
+private func formatClock(_ date: Date) -> String {
+    let f = DateFormatter()
+    f.locale = Locale(identifier: "ko_KR")
+    f.dateFormat = "M/d HH:mm"
+    return f.string(from: date)
+}
+
+/// Compact amount for a calendar day cell (no ₩ symbol, no decimals under 만).
+private func calendarAmountText(_ value: Double) -> String {
+    guard value > 0 else { return "" }
+    if value < 10000 {
+        return String(Int(value))
+    }
+    let formatter = NumberFormatter()
+    formatter.maximumFractionDigits = 1
+    formatter.minimumFractionDigits = 0
+    let man = value / 10000
+    return (formatter.string(from: NSNumber(value: man)) ?? "0") + "만"
+}
+
 /// Breaks a large exact won amount into 억/만 chunks for readability while typing,
 /// e.g. 10090 -> "1만90원", 60000000 -> "6000만원". Unlike formatWon this keeps the
 /// exact figure (no rounding) since it's echoing back what the user just typed.
@@ -48,6 +68,7 @@ struct MeterView: View {
     @State private var draftAmountText: String
     @State private var draftPaydayText: String
     @State private var draftIsLastDay: Bool
+    @State private var calendarMonthOffset: Int = 0
 
     init(model: PayModel) {
         self.model = model
@@ -67,7 +88,9 @@ struct MeterView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if model.isRunning && !model.showDetail {
+            if model.showCalendar {
+                calendarView
+            } else if model.isRunning && !model.showDetail {
                 compactView
             } else {
                 detailView
@@ -97,6 +120,12 @@ struct MeterView: View {
                 Text(formatWon(model.todayAmount))
                     .font(.system(size: 24, weight: .bold, design: .monospaced))
                     .foregroundStyle(meterColor)
+                if let start = model.lastStartDate {
+                    Text("시작 \(formatClock(start))").font(.caption2).foregroundStyle(.gray)
+                }
+                if !model.isRunning, let stop = model.lastStopDate {
+                    Text("종료 \(formatClock(stop))").font(.caption2).foregroundStyle(.gray)
+                }
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(cumulativeResetLabel).font(.caption2).foregroundStyle(.gray)
@@ -159,8 +188,82 @@ struct MeterView: View {
             }
             .frame(maxWidth: .infinity)
 
+            Button("캘린더") {
+                calendarMonthOffset = 0
+                model.showCalendar = true
+            }
+            .frame(maxWidth: .infinity)
+
             Button("종료") { NSApplication.shared.terminate(nil) }
                 .frame(maxWidth: .infinity)
+        }
+        .padding(14)
+        .background(RoundedRectangle(cornerRadius: 14).fill(Color.black.opacity(0.88)))
+        .shadow(radius: 8)
+        .foregroundStyle(.white)
+    }
+
+    private var displayedMonth: Date {
+        Calendar.current.date(byAdding: .month, value: calendarMonthOffset, to: Date()) ?? Date()
+    }
+
+    private var calendarView: some View {
+        let calendar = Calendar.current
+        let monthInterval = calendar.dateInterval(of: .month, for: displayedMonth) ?? DateInterval(start: displayedMonth, duration: 0)
+        let firstWeekday = calendar.component(.weekday, from: monthInterval.start) // 1 = Sun
+        let daysInMonth = calendar.range(of: .day, in: .month, for: displayedMonth)?.count ?? 30
+        let leadingBlanks = firstWeekday - 1
+        let monthFormatter: DateFormatter = {
+            let f = DateFormatter()
+            f.locale = Locale(identifier: "ko_KR")
+            f.dateFormat = "yyyy년 M월"
+            return f
+        }()
+        let columns = Array(repeating: GridItem(.flexible(), spacing: 2), count: 7)
+
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Button("◀") { calendarMonthOffset -= 1 }
+                    .disabled(calendarMonthOffset <= -(PayCalculator.historyRetentionDays / 30 - 1))
+                Spacer()
+                Text(monthFormatter.string(from: displayedMonth)).font(.caption).bold()
+                Spacer()
+                Button("▶") { calendarMonthOffset += 1 }
+                    .disabled(calendarMonthOffset >= 0)
+            }
+
+            LazyVGrid(columns: columns, spacing: 4) {
+                ForEach(["일", "월", "화", "수", "목", "금", "토"], id: \.self) { w in
+                    Text(w).font(.system(size: 9)).foregroundStyle(.gray)
+                }
+                ForEach(0..<leadingBlanks, id: \.self) { _ in
+                    Color.clear.frame(height: 28)
+                }
+                ForEach(1...daysInMonth, id: \.self) { day in
+                    let date = calendar.date(byAdding: .day, value: day - 1, to: monthInterval.start) ?? monthInterval.start
+                    let key = PayCalculator.dayKey(for: date)
+                    let amount = model.dailyHistory[key] ?? 0
+                    let isToday = calendar.isDateInToday(date)
+
+                    VStack(spacing: 1) {
+                        Text("\(day)").font(.system(size: 10))
+                        Text(calendarAmountText(amount))
+                            .font(.system(size: 8, design: .monospaced))
+                            .foregroundStyle(.green)
+                    }
+                    .frame(height: 28)
+                    .frame(maxWidth: .infinity)
+                    .background(
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(isToday ? Color.white.opacity(0.15) : Color.clear)
+                    )
+                }
+            }
+
+            Button("상세로") {
+                model.showCalendar = false
+            }
+            .frame(maxWidth: .infinity)
         }
         .padding(14)
         .background(RoundedRectangle(cornerRadius: 14).fill(Color.black.opacity(0.88)))

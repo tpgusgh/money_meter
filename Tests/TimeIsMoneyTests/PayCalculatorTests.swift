@@ -68,6 +68,21 @@ final class PayCalculatorTests: XCTestCase {
         XCTAssertTrue(PayCalculator.shouldClearIdleToday(stoppedAt: fourHoursAgo, now: now, interval: 3 * 3600))
     }
 
+    func testDayKeyFormat() {
+        let calendar = Calendar.current
+        let date = calendar.date(from: DateComponents(year: 2026, month: 9, day: 5))!
+        XCTAssertEqual(PayCalculator.dayKey(for: date, calendar: calendar), "2026-09-05")
+    }
+
+    func testIsWithinRetention() {
+        let calendar = Calendar.current
+        let now = calendar.date(from: DateComponents(year: 2026, month: 9, day: 22))!
+        XCTAssertTrue(PayCalculator.isWithinRetention(dayKey: "2026-09-01", now: now, retentionDays: 90, calendar: calendar))
+        XCTAssertTrue(PayCalculator.isWithinRetention(dayKey: "2026-06-25", now: now, retentionDays: 90, calendar: calendar))
+        XCTAssertFalse(PayCalculator.isWithinRetention(dayKey: "2026-06-01", now: now, retentionDays: 90, calendar: calendar))
+        XCTAssertFalse(PayCalculator.isWithinRetention(dayKey: "not-a-date", now: now, retentionDays: 90, calendar: calendar))
+    }
+
     func testShouldResetForNewPayPeriod() {
         let calendar = Calendar.current
         let now = calendar.date(from: DateComponents(year: 2026, month: 9, day: 25))!
