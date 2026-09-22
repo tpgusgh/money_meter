@@ -67,3 +67,7 @@ open dist/TimeIsMoney.app
 swift build   # 빌드
 swift test    # 계산 로직 테스트
 ```
+
+## 라이선스
+
+[MIT](LICENSE)
