@@ -10,6 +10,11 @@ private func digitsOnly(_ s: String) -> String {
     s.filter(\.isNumber)
 }
 
+private enum CalendarCell: Hashable {
+    case blank(Int)
+    case day(Int)
+}
+
 private func formatClock(_ date: Date) -> String {
     let f = DateFormatter()
     f.locale = Locale(identifier: "ko_KR")
@@ -58,6 +63,7 @@ struct MeterView: View {
     @State private var draftPaydayText: String
     @State private var draftIsLastDay: Bool
     @State private var calendarMonthOffset: Int = 0
+    @State private var selectedCalendarDate: Date?
 
     init(model: PayModel) {
         self.model = model
@@ -179,6 +185,7 @@ struct MeterView: View {
 
             Button("캘린더") {
                 calendarMonthOffset = 0
+                selectedCalendarDate = nil
                 model.showCalendar = true
             }
             .frame(maxWidth: .infinity)
@@ -208,6 +215,12 @@ struct MeterView: View {
             f.dateFormat = "yyyy년 M월"
             return f
         }()
+        let selectedDayFormatter: DateFormatter = {
+            let f = DateFormatter()
+            f.locale = Locale(identifier: "ko_KR")
+            f.dateFormat = "M월 d일 (E)"
+            return f
+        }()
         let columns = Array(repeating: GridItem(.flexible(), spacing: 2), count: 7)
 
         return VStack(alignment: .leading, spacing: 8) {
@@ -220,32 +233,61 @@ struct MeterView: View {
                 Button("▶") { calendarMonthOffset += 1 }
                     .disabled(calendarMonthOffset >= 0)
             }
+            .onChange(of: calendarMonthOffset) { _ in selectedCalendarDate = nil }
+
+            // A single ForEach over one unified, uniquely-identified array — LazyVGrid can
+            // miscount/misplace items when leading blanks and days come from two separate
+            // ForEach loops with overlapping `id: \.self` Int values (day 1 was vanishing).
+            let cells: [CalendarCell] = (0..<leadingBlanks).map { .blank($0) } + (1...daysInMonth).map { .day($0) }
 
             LazyVGrid(columns: columns, spacing: 4) {
                 ForEach(["일", "월", "화", "수", "목", "금", "토"], id: \.self) { w in
                     Text(w).font(.system(size: 9)).foregroundStyle(.gray)
                 }
-                ForEach(0..<leadingBlanks, id: \.self) { _ in
-                    Color.clear.frame(height: 28)
-                }
-                ForEach(1...daysInMonth, id: \.self) { day in
-                    let date = calendar.date(byAdding: .day, value: day - 1, to: monthInterval.start) ?? monthInterval.start
-                    let key = PayCalculator.dayKey(for: date)
-                    let amount = model.dailyHistory[key] ?? 0
-                    let isToday = calendar.isDateInToday(date)
+                ForEach(cells, id: \.self) { cell in
+                    switch cell {
+                    case .blank:
+                        Color.clear.frame(height: 28)
+                    case .day(let day):
+                        let date = calendar.date(byAdding: .day, value: day - 1, to: monthInterval.start) ?? monthInterval.start
+                        let key = PayCalculator.dayKey(for: date)
+                        let amount = model.dailyHistory[key] ?? 0
+                        let isToday = calendar.isDateInToday(date)
+                        let isSelected = selectedCalendarDate.map { calendar.isDate($0, inSameDayAs: date) } ?? false
 
-                    VStack(spacing: 1) {
-                        Text("\(day)").font(.system(size: 10))
-                        Text(calendarAmountText(amount))
-                            .font(.system(size: 8, design: .monospaced))
-                            .foregroundStyle(.green)
+                        Button {
+                            selectedCalendarDate = date
+                        } label: {
+                            VStack(spacing: 1) {
+                                Text("\(day)").font(.system(size: 10))
+                                Text(calendarAmountText(amount))
+                                    .font(.system(size: 8, design: .monospaced))
+                                    .foregroundStyle(.green)
+                            }
+                            .frame(height: 28)
+                            .frame(maxWidth: .infinity)
+                            .background(
+                                RoundedRectangle(cornerRadius: 4)
+                                    .fill(isToday ? Color.white.opacity(0.15) : Color.clear)
+                                    .overlay(
+                                        RoundedRectangle(cornerRadius: 4)
+                                            .stroke(isSelected ? Color.accentColor : Color.clear, lineWidth: 1.5)
+                                    )
+                            )
+                        }
+                        .buttonStyle(.plain)
                     }
-                    .frame(height: 28)
-                    .frame(maxWidth: .infinity)
-                    .background(
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(isToday ? Color.white.opacity(0.15) : Color.clear)
-                    )
+                }
+            }
+
+            if let selected = selectedCalendarDate {
+                let key = PayCalculator.dayKey(for: selected)
+                let amount = model.dailyHistory[key] ?? 0
+                Divider().background(Color.gray)
+                HStack {
+                    Text(selectedDayFormatter.string(from: selected)).font(.caption).foregroundStyle(.gray)
+                    Spacer()
+                    Text(formatWon(amount)).font(.system(size: 13, weight: .bold, design: .monospaced))
                 }
             }
 
