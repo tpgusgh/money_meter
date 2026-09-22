@@ -14,6 +14,8 @@ struct PersistedState: Codable {
     var lastStartDate: Double = 0
     var lastStopDate: Double = 0
     var dailyHistory: [String: Double] = [:]
+    var itemName: String = "피자헛 수퍼슈림프 L"
+    var itemPrice: Double = 23900
 }
 
 /// Persists to a fixed file under Application Support instead of UserDefaults keyed by

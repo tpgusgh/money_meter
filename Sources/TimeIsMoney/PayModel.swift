@@ -14,6 +14,8 @@ final class PayModel: ObservableObject {
     /// `todayAmount` — this is what the calendar view reads. Pruned to the last
     /// `PayCalculator.historyRetentionDays` days whenever a new day starts.
     @Published private(set) var dailyHistory: [String: Double]
+    @Published private(set) var itemName: String
+    @Published private(set) var itemPrice: Double
     /// Session-only (not persisted): whether the floating panel shows full controls
     /// or just collapses to the running total. Toggled from the status bar icon.
     @Published var showDetail: Bool = true
@@ -43,6 +45,8 @@ final class PayModel: ObservableObject {
         lastStartDate = stored.lastStartDate > 0 ? Date(timeIntervalSince1970: stored.lastStartDate) : nil
         lastStopDate = stored.lastStopDate > 0 ? Date(timeIntervalSince1970: stored.lastStopDate) : nil
         dailyHistory = stored.dailyHistory
+        itemName = stored.itemName
+        itemPrice = stored.itemPrice
 
         let now = Date()
         lastResetDate = stored.lastResetDate > 0 ? Date(timeIntervalSince1970: stored.lastResetDate) : now
@@ -74,9 +78,11 @@ final class PayModel: ObservableObject {
 
     /// Applies edited settings from the panel's 저장 button. Re-anchors the pay-period
     /// marker to the new payday without zeroing progress already earned this period.
-    func applySettings(type: SalaryType, amount: Double, payday: Int) {
+    func applySettings(type: SalaryType, amount: Double, payday: Int, itemName: String, itemPrice: Double) {
         salaryType = type
         salaryAmount = amount
+        self.itemName = itemName.isEmpty ? self.itemName : itemName
+        self.itemPrice = itemPrice > 0 ? itemPrice : self.itemPrice
 
         let clampedPayday = min(max(payday, 1), 31)
         if clampedPayday != paydayDay {
@@ -174,7 +180,9 @@ final class PayModel: ObservableObject {
             stoppedAt: stoppedAt?.timeIntervalSince1970 ?? 0,
             lastStartDate: lastStartDate?.timeIntervalSince1970 ?? 0,
             lastStopDate: lastStopDate?.timeIntervalSince1970 ?? 0,
-            dailyHistory: dailyHistory
+            dailyHistory: dailyHistory,
+            itemName: itemName,
+            itemPrice: itemPrice
         ))
     }
 }

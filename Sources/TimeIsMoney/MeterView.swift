@@ -62,6 +62,8 @@ struct MeterView: View {
     @State private var draftAmountText: String
     @State private var draftPaydayText: String
     @State private var draftIsLastDay: Bool
+    @State private var draftItemName: String
+    @State private var draftItemPriceText: String
     @State private var calendarMonthOffset: Int = 0
     @State private var selectedCalendarDate: Date?
 
@@ -71,6 +73,8 @@ struct MeterView: View {
         _draftAmountText = State(initialValue: model.salaryAmount > 0 ? String(Int(model.salaryAmount)) : "")
         _draftIsLastDay = State(initialValue: model.paydayDay == 31)
         _draftPaydayText = State(initialValue: String(model.paydayDay))
+        _draftItemName = State(initialValue: model.itemName)
+        _draftItemPriceText = State(initialValue: String(Int(model.itemPrice)))
     }
 
     private var meterColor: Color { model.isRunning ? .green : .white }
@@ -132,6 +136,11 @@ struct MeterView: View {
                 if !model.isRunning, let stop = model.lastStopDate {
                     Text("종료 \(formatClock(stop))").font(.caption2).foregroundStyle(.gray)
                 }
+                if model.itemPrice > 0 {
+                    Text("이 돈이면 \(model.itemName) \(Int(model.todayAmount / model.itemPrice))개!")
+                        .font(.caption2)
+                        .foregroundStyle(.orange)
+                }
             }
             VStack(alignment: .leading, spacing: 2) {
                 Text(cumulativeResetLabel).font(.caption2).foregroundStyle(.gray)
@@ -187,10 +196,26 @@ struct MeterView: View {
                     if isLastDay { draftPaydayText = "31" }
                 }
 
+            Divider().background(Color.gray)
+
+            TextField("비교 품목 (예: 피자헛 수퍼슈림프 L)", text: $draftItemName)
+                .textFieldStyle(.roundedBorder)
+            HStack {
+                Text("개당").foregroundStyle(.gray)
+                TextField("가격", text: $draftItemPriceText)
+                    .textFieldStyle(.roundedBorder)
+                    .onChange(of: draftItemPriceText) { newValue in
+                        let filtered = digitsOnly(newValue)
+                        if filtered != newValue { draftItemPriceText = filtered }
+                    }
+                Text("원")
+            }
+
             Button("저장") {
                 let amount = Double(draftAmountText) ?? 0
                 let payday = draftIsLastDay ? 31 : (Int(draftPaydayText) ?? model.paydayDay)
-                model.applySettings(type: draftType, amount: amount, payday: payday)
+                let price = Double(draftItemPriceText) ?? model.itemPrice
+                model.applySettings(type: draftType, amount: amount, payday: payday, itemName: draftItemName, itemPrice: price)
             }
             .frame(maxWidth: .infinity)
 
