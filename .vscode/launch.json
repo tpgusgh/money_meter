@@ -1,0 +1,24 @@
+{
+    "configurations": [
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:time_is_money}",
+            "name": "Debug TimeIsMoney",
+            "target": "TimeIsMoney",
+            "configuration": "debug",
+            "preLaunchTask": "swift: Build Debug TimeIsMoney"
+        },
+        {
+            "type": "swift",
+            "request": "launch",
+            "args": [],
+            "cwd": "${workspaceFolder:time_is_money}",
+            "name": "Release TimeIsMoney",
+            "target": "TimeIsMoney",
+            "configuration": "release",
+            "preLaunchTask": "swift: Build Release TimeIsMoney"
+        }
+    ]
+}
