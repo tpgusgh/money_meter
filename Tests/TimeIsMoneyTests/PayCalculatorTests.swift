@@ -96,14 +96,16 @@ final class PayCalculatorTests: XCTestCase {
 
 final class FormatWonTests: XCTestCase {
     func testBelowTenThousandShowsPlainWon() {
-        XCTAssertEqual(formatWon(3245), "₩3,245")
-        XCTAssertEqual(formatWon(0), "₩0")
+        XCTAssertEqual(formatWon(3245), "₩3,245원")
+        XCTAssertEqual(formatWon(0), "₩0원")
     }
 
-    func testAtOrAboveTenThousandShowsManUnit() {
+    func testAtOrAboveTenThousandShowsExactManBreakdown() {
         XCTAssertEqual(formatWon(10_000), "₩1만원")
         XCTAssertEqual(formatWon(100_000), "₩10만원")
-        XCTAssertEqual(formatWon(15_000), "₩1.5만원")
+        // Not "₩1.5만원" — exact 만/원 split, matching formatWonBroken.
+        XCTAssertEqual(formatWon(15_000), "₩1만5,000원")
+        XCTAssertEqual(formatWon(50_038), "₩5만38원")
     }
 
     func testFormatWonBrokenSplitsIntoManAndRemainder() {

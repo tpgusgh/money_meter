@@ -1,19 +1,9 @@
 import AppKit
 import SwiftUI
 
+/// e.g. 50038 -> "₩5만38원" (not "₩5.0만원") — exact 만/원 breakdown, no decimals.
 func formatWon(_ value: Double) -> String {
-    let formatter = NumberFormatter()
-    formatter.numberStyle = .decimal
-    formatter.groupingSeparator = ","
-    if value < 10000 {
-        formatter.maximumFractionDigits = 0
-        return "₩" + (formatter.string(from: NSNumber(value: value)) ?? "0")
-    } else {
-        formatter.maximumFractionDigits = 1
-        formatter.minimumFractionDigits = 0
-        let man = value / 10000
-        return "₩" + (formatter.string(from: NSNumber(value: man)) ?? "0") + "만원"
-    }
+    "₩" + formatWonBroken(Int(value.rounded()))
 }
 
 private func digitsOnly(_ s: String) -> String {
@@ -40,9 +30,8 @@ private func calendarAmountText(_ value: Double) -> String {
     return (formatter.string(from: NSNumber(value: man)) ?? "0") + "만"
 }
 
-/// Breaks a large exact won amount into 억/만 chunks for readability while typing,
-/// e.g. 10090 -> "1만90원", 60000000 -> "6000만원". Unlike formatWon this keeps the
-/// exact figure (no rounding) since it's echoing back what the user just typed.
+/// Breaks a won amount into 억/만/원 chunks for readability, e.g. 10090 -> "1만90원",
+/// 60000000 -> "6000만원". Backs both the salary-input preview and formatWon.
 func formatWonBroken(_ value: Int) -> String {
     guard value > 0 else { return "0원" }
     let eok = value / 100_000_000
