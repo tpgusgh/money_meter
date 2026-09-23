@@ -22,6 +22,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         checkForUpdate()
     }
 
+    func applicationWillTerminate(_ notification: Notification) {
+        // Cmd+Q, our own 종료 menu item, or system logout all end up here — make sure a
+        // clean quit never leaves "isRunning: true" sitting in the saved state.
+        model.stop()
+    }
+
     private func checkForUpdate() {
         // Dev (`swift run`) builds have no Info.plist version — nothing to compare against.
         guard let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String else { return }

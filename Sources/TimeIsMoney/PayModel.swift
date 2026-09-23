@@ -39,7 +39,10 @@ final class PayModel: ObservableObject {
         salaryAmount = stored.salaryAmount
         let resolvedPayday = stored.paydayDay > 0 ? stored.paydayDay : 25
         paydayDay = resolvedPayday
-        isRunning = stored.isRunning
+        // Always start stopped — a quit (crash, force-quit, Cmd+Q) shouldn't leave the
+        // meter silently running until the user notices. applicationWillTerminate calls
+        // stop() on a clean quit, so a leftover `true` here only happens after an unclean one.
+        isRunning = false
         todayAmount = stored.todayAmount
         cumulativeAmount = stored.cumulativeAmount
         lastStartDate = stored.lastStartDate > 0 ? Date(timeIntervalSince1970: stored.lastStartDate) : nil
@@ -54,18 +57,23 @@ final class PayModel: ObservableObject {
             ? Date(timeIntervalSince1970: stored.payPeriodStart)
             : PayCalculator.currentPeriodStart(now: now, payday: resolvedPayday)
         lastTickDate = stored.lastTickDate > 0 ? Date(timeIntervalSince1970: stored.lastTickDate) : now
-        stoppedAt = stored.stoppedAt > 0 ? Date(timeIntervalSince1970: stored.stoppedAt) : nil
+        // If it was still marked running when the process died, the last tick is the
+        // closest thing to a real "stopped at" — otherwise today's idle-clear timer would
+        // never start even though nothing has been accruing since.
+        stoppedAt = stored.isRunning
+            ? Date(timeIntervalSince1970: stored.lastTickDate)
+            : (stored.stoppedAt > 0 ? Date(timeIntervalSince1970: stored.stoppedAt) : nil)
 
-        if isRunning {
-            tick() // catch up on elapsed time since the app was last closed
-            scheduleTimer()
-        } else if let stoppedAt {
+        applyRollovers(now: now)
+
+        if let stoppedAt {
             if PayCalculator.shouldClearIdleToday(stoppedAt: stoppedAt, now: now, interval: Self.idleResetInterval) {
                 resetTodayFromIdle()
             } else {
                 scheduleIdleReset(after: Self.idleResetInterval - now.timeIntervalSince(stoppedAt))
             }
         }
+        persist() // write back isRunning: false even if it was left `true` in the file
     }
 
     var perSecondRate: Double {
@@ -142,8 +150,10 @@ final class PayModel: ObservableObject {
         persist()
     }
 
-    private func tick() {
-        let now = Date()
+    /// Rolls "오늘"/누적 over if a day or pay period boundary was crossed. Runs both on
+    /// every tick and once at launch, so being closed overnight still resets correctly
+    /// even though nothing ticked while it was shut.
+    private func applyRollovers(now: Date) {
         if PayCalculator.shouldResetForNewDay(lastResetDate: lastResetDate, now: now) {
             todayAmount = 0
             lastResetDate = now
@@ -153,6 +163,19 @@ final class PayModel: ObservableObject {
             cumulativeAmount = 0
             payPeriodStart = PayCalculator.currentPeriodStart(now: now, payday: paydayDay)
         }
+    }
+
+    /// Removes a single day's entry from the calendar history (e.g. a mis-tracked day).
+    func deleteHistory(for date: Date) {
+        let key = PayCalculator.dayKey(for: date)
+        guard dailyHistory[key] != nil else { return }
+        dailyHistory.removeValue(forKey: key)
+        persist()
+    }
+
+    private func tick() {
+        let now = Date()
+        applyRollovers(now: now)
 
         let elapsed = now.timeIntervalSince(lastTickDate)
         let amount = perSecondRate * elapsed

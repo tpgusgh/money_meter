@@ -325,6 +325,14 @@ struct MeterView: View {
                     Spacer()
                     Text(formatWon(amount)).font(.system(size: 13, weight: .bold, design: .monospaced))
                 }
+                if amount > 0 {
+                    Button("이 날짜 기록 삭제") {
+                        model.deleteHistory(for: selected)
+                        selectedCalendarDate = nil
+                    }
+                    .foregroundStyle(.red)
+                    .frame(maxWidth: .infinity)
+                }
             }
 
             Button("상세로") {
